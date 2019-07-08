@@ -1,6 +1,6 @@
 {
   "name": "natty-fetch-queue",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "description": "natty-fetch with pqueue",
   "repository": "https://github.com/Jias/natty-fetch.git",
   "author": "lijiajun",
