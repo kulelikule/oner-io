@@ -1,9 +1,9 @@
 {
-  "name": "natty-fetch",
+  "name": "natty-fetch-queue",
   "version": "2.6.0",
-  "description": "A natty semantic data-fetching tool for project that no longer needs to use jQuery/Zepto's Ajax.",
+  "description": "natty-fetch with pqueue",
   "repository": "https://github.com/Jias/natty-fetch.git",
-  "author": "fushan",
+  "author": "lijiajun",
   "main": "dist/natty-fetch.js",
   "jsnext:main": "src/natty-fetch.js",
   "files": [
@@ -69,6 +69,7 @@
   },
   "license": "MIT",
   "dependencies": {
-    "natty-storage": "^2.2.0"
+    "natty-storage": "^2.2.0",
+    "p-queue-es5": "^6.0.2"
   }
 }

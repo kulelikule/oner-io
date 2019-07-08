@@ -1,12 +1,6 @@
 import nattyStorage from 'natty-storage'
+import PQueue from 'p-queue-es5'
 import * as util from './util'
-
-const {
-  extend, runAsFn, isBoolean, deepCopy,
-  isArray, isFunction, sortPlainObjectKey, isEmptyObject,
-  isPlainObject, dummyPromise,
-  isString, NULL, TRUE, FALSE, hasConsole, makeRandom,
-} = util
 
 import Request from './request'
 import ajax from './__AJAX__'
@@ -20,11 +14,18 @@ import pluginSoon from './plugin-soon'
 // 全局默认配置
 import defaultGlobalConfig from './default-global-config'
 
+const {
+  extend, runAsFn, isBoolean, deepCopy,
+  isArray, isFunction, sortPlainObjectKey, isEmptyObject,
+  isPlainObject, dummyPromise,
+  isString, NULL, TRUE, FALSE, hasConsole, makeRandom,
+} = util
+
 // 随`setGlobal`方法而变化的运行时全局配置
 let runtimeGlobalConfig = extend({}, defaultGlobalConfig)
 
 class API {
-  constructor(path, options, contextConfig, contextId) {
+  constructor(path, options, contextConfig, contextId, pQueue) {
     this._path = path
 
     this.contextConfig = contextConfig
@@ -37,6 +38,8 @@ class API {
     this.storage = NULL
 
     this.config = this.processAPIOptions(options)
+
+    this.pQueue = pQueue
 
     // `api`的实现
     // @param data {Object|Function}
@@ -137,48 +140,48 @@ class API {
 
   // 发送真正的网络请求
   send(vars, config) {
+    return this.pQueue.add(() => {
+      // 每次请求都创建一个请求实例
+      const request = new Request({
+        path: this._path, 
+        config, 
+        api: this.api, 
+        contextId: this.contextId,
+      })
 
+      this._pendingList.push(request)
 
-    // 每次请求都创建一个请求实例
-    const request = new Request({
-      path: this._path, 
-      config, 
-      api: this.api, 
-      contextId: this.contextId,
-    })
+      const defer = new Defer(config.Promise)
 
-    this._pendingList.push(request)
-
-    const defer = new Defer(config.Promise)
-
-    request.send({
-      vars,
-      onSuccess: content => {
-        if (this.api.storageUseable) {
-          this.api.storage.set(vars.queryString, content)
-        }
-        defer.resolve(content)
-        event.fire('g.resolve', [content, config], config)
-        event.fire(this.contextId + '.resolve', [content, config], config)
-      },
-      onError: error => {
-        defer.reject(error)
-        event.fire('g.reject', [error, config, vars], config)
-        event.fire(this.contextId + '.reject', [error, config, vars], config)
-      },
-      onComplete: () => {
-        let indexToRemove
-        for (let i=0, l=this._pendingList.length; i<l; i++) {
-          if (this._pendingList[i] === request) {
-            indexToRemove = i
-            break
+      request.send({
+        vars,
+        onSuccess: content => {
+          if (this.api.storageUseable) {
+            this.api.storage.set(vars.queryString, content)
           }
-        }
-        indexToRemove !== undefined && this._pendingList.splice(indexToRemove, 1)
-      },
-    })
+          defer.resolve(content)
+          event.fire('g.resolve', [content, config], config)
+          event.fire(this.contextId + '.resolve', [content, config], config)
+        },
+        onError: error => {
+          defer.reject(error)
+          event.fire('g.reject', [error, config, vars], config)
+          event.fire(this.contextId + '.reject', [error, config, vars], config)
+        },
+        onComplete: () => {
+          let indexToRemove
+          for (let i=0, l=this._pendingList.length; i<l; i++) {
+            if (this._pendingList[i] === request) {
+              indexToRemove = i
+              break
+            }
+          }
+          indexToRemove !== undefined && this._pendingList.splice(indexToRemove, 1)
+        },
+      })
 
-    return defer.promise
+      return defer.promise
+    })
   }
 
   // 重试
@@ -310,6 +313,13 @@ const context = (contextId, options) => {
     plugins,
   })
 
+  const {concurrency} = ctx._config
+  let pQueueConfig = {}
+  if (concurrency) {
+    pQueueConfig =  {concurrency}
+  }
+  const pQueue = new PQueue(pQueueConfig)
+
   // 创建api
   // @param namespace {String} optional
   // @param APIs {Object} 该`namespace`下的`api`配置
@@ -328,7 +338,8 @@ const context = (contextId, options) => {
             hasNamespace ? namespace + '.' + path : path,
             runAsFn(APIs[path]),
             ctx._config,
-            contextId
+            contextId,
+            pQueue
           ).api
         )
       }

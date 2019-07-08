@@ -66,7 +66,8 @@ function buildNattyFetch(isModern, isUgly) {
   return rollup.rollup({
     entry: entryMap[env],
     external: [
-      'natty-storage'
+      'natty-storage',
+      'p-queue-es5',
     ],
     plugins: (function(){
       return [
@@ -125,6 +126,7 @@ function buildNattyFetch(isModern, isUgly) {
       moduleName: 'nattyFetch',
       globals: {
         'natty-storage': 'nattyStorage',
+        'p-queue-es5': 'PQueue',
       },
       sourceMap: true,
       banner: '/*! ' + distFile.substr(5) + ' v' + pkg.version + ' | MIT License | fushan | https://github.com/jias/natty-fetch */',
